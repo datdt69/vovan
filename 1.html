@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Neon Heart Particles (Lite)</title>
+  <style>
+  :root {
+    --bg1: #0f0c29;
+    --bg2: #302b63;
+    --bg3: #24243e;
+  }
+  html, body {
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    background: linear-gradient(135deg, var(--bg1), var(--bg2), var(--bg3));
+    overflow: hidden;
+  }
+  canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .label {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    color: #ffffffcc;
+    font: 600 12px/1.2 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    user-select: none;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+  </style>
+</head>
+<body>
+  <canvas id="pinkboard"></canvas>
+  <div class="label">Di chuột để đổi tâm • Click để bùng nổ tim</div>
+
+  <script>
+  // Settings (đã giảm để đỡ lag)
+  const settings = {
+    particles: {
+      length: 300,     // giảm số hạt tối đa
+      duration: 1.6,   // sống ngắn hơn -> ít hạt tồn tại cùng lúc
+      velocity: 90,    // tốc độ thấp hơn
+      effect: -0.85,   // gia tốc ngược nhẹ
+      size: 20         // sprite nhỏ hơn
+    }
+  };
+
+  // Canvas + DPI scaling (khóa 1x cho nhẹ)
+  const canvas = document.getElementById('pinkboard');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  const dpr = 1; // ép 1x để nhẹ, nếu muốn đẹp hơn đổi thành Math.min(1.25, window.devicePixelRatio||1)
+
+  function resize() {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Point helper
+  function Point(x = 0, y = 0) { this.x = x; this.y = y; }
+  Point.prototype.clone = function() { return new Point(this.x, this.y); };
+  Point.prototype.length = function(len) {
+    if (len === undefined) return Math.hypot(this.x, this.y);
+    const l = this.length() || 1;
+    this.x = this.x / l * len;
+    this.y = this.y / l * len;
+    return this;
+  };
+
+  // Heart parametric curve
+  function pointOnHeart(t) {
+    return new Point(
+      160 * Math.pow(Math.sin(t), 3),
+      130 * Math.cos(t) - 50 * Math.cos(2 * t) - 20 * Math.cos(3 * t) - 10 * Math.cos(4 * t) + 25
+    );
+  }
+
+  // Ít màu hơn để nhẹ
+  const colors = ['#ff2d55','#7b61ff','#00d4ff','#ffd166'];
+
+  // Create neon heart sprite per color (blur bake nhẹ, 1 lần)
+  function makeHeartSprite(color, size = settings.particles.size) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+
+    function to(t) {
+      const p = pointOnHeart(t);
+      p.x = size / 2 + p.x * size / 350;
+      p.y = size / 2 - p.y * size / 350;
+      return p;
+    }
+
+    g.beginPath();
+    let t = -Math.PI, p = to(t);
+    g.moveTo(p.x, p.y);
+    while (t < Math.PI) {
+      t += 0.01;
+      p = to(t);
+      g.lineTo(p.x, p.y);
+    }
+    g.closePath();
+
+    const grad = g.createLinearGradient(0, 0, size, size);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, '#ffffff');
+    g.fillStyle = grad;
+    g.shadowColor = color;
+    g.shadowBlur = size * 0.10; // blur nhỏ hơn
+    g.fill();
+
+    const img = new Image();
+    img.src = c.toDataURL();
+    return img;
+  }
+  const sprites = colors.map(c => makeHeartSprite(c));
+
+  // Particle
+  function Particle() {
+    this.position = new Point();
+    this.velocity = new Point();
+    this.acceleration = new Point();
+    this.age = 0;
+    this.ci = (Math.random() * sprites.length) | 0;
+    this.scaleJitter = 0.9 + Math.random() * 0.35;
+  }
+  Particle.prototype.init = function(x, y, dx, dy) {
+    this.position.x = x;
+    this.position.y = y;
+    this.velocity.x = dx;
+    this.velocity.y = dy;
+    this.acceleration.x = dx * settings.particles.effect;
+    this.acceleration.y = dy * settings.particles.effect;
+    this.age = 0;
+    this.ci = (this.ci + 1 + (Math.random() * 2 | 0)) % sprites.length;
+    this.scaleJitter = 0.9 + Math.random() * 0.35;
+  };
+  Particle.prototype.update = function(dt) {
+    this.position.x += this.velocity.x * dt;
+    this.position.y += this.velocity.y * dt;
+    this.velocity.x += this.acceleration.x * dt;
+    this.velocity.y += this.acceleration.y * dt;
+    this.age += dt;
+  };
+  Particle.prototype.draw = function(ctx) {
+    const t = this.age / settings.particles.duration;
+    const ease = (x) => (--x) * x * x + 1;
+    const img = sprites[this.ci];
+    const s = img.width * ease(t) * this.scaleJitter;
+    ctx.globalAlpha = 1 - t;
+    // tắt blend 'lighter' để nhẹ hơn; shadowBlur nhỏ
+    ctx.shadowColor = colors[this.ci];
+    ctx.shadowBlur = 4;
+    ctx.drawImage(img, this.position.x - s / 2, this.position.y - s / 2, s, s);
+    ctx.shadowBlur = 0;
+  };
+
+  // Pool
+  function ParticlePool(n) {
+    this.particles = Array.from({ length: n }, () => new Particle());
+    this.firstActive = 0;
+    this.firstFree = 0;
+    this.duration = settings.particles.duration;
+    this.len = n;
+  }
+  ParticlePool.prototype.add = function(x, y, dx, dy) {
+    this.particles[this.firstFree].init(x, y, dx, dy);
+    this.firstFree = (this.firstFree + 1) % this.len;
+    if (this.firstActive === this.firstFree)
+      this.firstActive = (this.firstActive + 1) % this.len;
+  };
+  ParticlePool.prototype.update = function(dt) {
+    let i;
+    if (this.firstActive < this.firstFree) {
+      for (i = this.firstActive; i < this.firstFree; i++) this.particles[i].update(dt);
+    } else {
+      for (i = this.firstActive; i < this.len; i++) this.particles[i].update(dt);
+      for (i = 0; i < this.firstFree; i++) this.particles[i].update(dt);
+    }
+    while (this.particles[this.firstActive].age >= this.duration && this.firstActive !== this.firstFree) {
+      this.firstActive = (this.firstActive + 1) % this.len;
+    }
+  };
+  ParticlePool.prototype.draw = function(ctx) {
+    let i;
+    if (this.firstActive < this.firstFree) {
+      for (i = this.firstActive; i < this.firstFree; i++) this.particles[i].draw(ctx);
+    } else {
+      for (i = this.firstActive; i < this.len; i++) this.particles[i].draw(ctx);
+      for (i = 0; i < this.firstFree; i++) this.particles[i].draw(ctx);
+    }
+  };
+
+  // Run
+  const pool = new ParticlePool(settings.particles.length);
+  const rate = (settings.particles.length / settings.particles.duration) * 0.5; // spawn chậm hơn
+  let lastT = performance.now() / 1000;
+  let center = { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 };
+
+  function spawnAt(x, y, count) {
+    for (let i = 0; i < count; i++) {
+      const pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
+      const dir = pos.clone().length(settings.particles.velocity * (0.9 + Math.random() * 0.2));
+      pool.add(x + pos.x, y - pos.y, dir.x, -dir.y);
+    }
+  }
+
+  function frame() {
+    requestAnimationFrame(frame);
+    if (document.hidden) { lastT = performance.now() / 1000; return; }
+
+    const now = performance.now() / 1000;
+    const dt = Math.min(1/60, now - lastT);
+    lastT = now;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const amount = Math.floor(rate * dt); // luôn là số nguyên cho nhẹ
+    for (let i = 0; i < amount; i++) {
+      const pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
+      const dir = pos.clone().length(settings.particles.velocity);
+      pool.add(center.x + pos.x, center.y - pos.y, dir.x, -dir.y);
+    }
+
+    pool.update(dt);
+    pool.draw(ctx);
+  }
+  requestAnimationFrame(frame);
+
+  // Interactions
+  window.addEventListener('mousemove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    center.x = e.clientX - r.left;
+    center.y = e.clientY - r.top;
+  });
+  window.addEventListener('click', (e) => {
+    const r = canvas.getBoundingClientRect();
+    // burst nhỏ hơn
+    spawnAt(e.clientX - r.left, e.clientY - r.top, 80);
+  });
+  </script>
+</body>
+</html>
