@@ -1,236 +1,156 @@
 <!doctype html>
 <html lang="vi">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    
-    <style>
-        :root {
-            --bg: #f8f8fb;
-            --text: #222;
-        }
-
-        html, body {
-            height: 100%;
-        }
-
-        body {
-            margin: 0;
-            background: radial-gradient(1200px 800px at 50% -100px, #fff 0%, var(--bg) 60%, #eef0f6 100%);
-            color: var(--text);
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-            display: grid;
-            place-items: center;
-        }
-
-        .stage {
-            display: grid;
-            gap: 16px;
-            justify-items: center;
-            padding: 16px;
-        }
-
-        .frame {
-            position: relative;
-            display: inline-block;
-            overflow: visible; /* cho trái tim hiển thị bên ngoài khung ảnh */
-            filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.15));
-            transform-style: preserve-3d;
-            transition: transform 250ms ease, filter 250ms ease;
-            perspective: 900px;
-            isolation: isolate; /* để lớp glow phía dưới không ảnh hưởng */
-        }
-
-        /* Glow mềm phía sau ảnh */
-        .frame::before {
-            content: "";
-            position: absolute;
-            inset: -28px;
-            border-radius: 28px;
-            background:
-                radial-gradient(60% 60% at 30% 20%, rgba(255, 0, 102, .35), transparent 70%),
-                radial-gradient(50% 50% at 80% 60%, rgba(255, 180, 0, .28), transparent 70%),
-                radial-gradient(45% 45% at 50% 90%, rgba(153, 102, 255, .18), transparent 70%);
-            filter: blur(26px) saturate(120%);
-            z-index: -1;
-            pointer-events: none;
-        }
-
-        .photo {
-            display: block;
-            max-width: min(78vw, 420px);
-            height: auto;
-            border-radius: 16px;
-            box-shadow: 0 10px 24px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.08) inset;
-            transform-origin: center;
-            animation: kenburns 24s ease-in-out infinite alternate;
-        }
-
-        @keyframes kenburns {
-            0% { transform: translate3d(-1%, -1%, 0) scale(1); }
-            100% { transform: translate3d(1.5%, 1.5%, 0) scale(1.08); }
-        }
-
-        .hearts-layer {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            overflow: visible;
-            transform-origin: center;
-            animation: ring-rotate 36s linear infinite;
-        }
-
-        @keyframes ring-rotate {
-            from { transform: rotate(0deg) translateZ(0); }
-            to { transform: rotate(360deg) translateZ(0); }
-        }
-
-        .heart {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            translate: -50% -50%;
-            font-size: 18px; /* sẽ được thay đổi bằng JS */
-            line-height: 1;
-            will-change: transform, opacity;
-            filter: drop-shadow(0 2px 2px rgba(0,0,0,.2));
-            animation: pulse 2.6s ease-in-out infinite;
-        }
-
-        /* Xoay emoji để nhìn hướng ra ngoài đường tròn */
-        .heart { transform: rotate(var(--deg, 0deg)) scale(var(--scale, 1)); }
-
-        @keyframes pulse {
-            0%, 100% { transform: rotate(var(--deg, 0deg)) scale(calc(var(--scale, 1) * 1)); opacity: .95; }
-            50% { transform: rotate(var(--deg, 0deg)) scale(calc(var(--scale, 1) * 1.18)); opacity: 1; }
-        }
-
-        /* Lấp lánh */
-        .sparkle {
-            position: absolute;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #fff 0%, rgba(255,255,255,.8) 40%, rgba(255,255,255,0) 70%);
-            filter: drop-shadow(0 0 8px rgba(255,255,255,.9));
-            opacity: .85;
-            pointer-events: none;
-            animation: twinkle 2.2s ease-in-out infinite;
-        }
-
-        @keyframes twinkle {
-            0%, 100% { transform: scale(0.9); opacity: .45; }
-            50% { transform: scale(1.35); opacity: 1; }
-        }
-
-        .caption { opacity: .75; font-size: 14px; }
-    </style>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<title>Heart Shape</title>
+	<style>
+		html, body { height: 100%; }
+		body { margin: 0; background:#000; overflow: hidden; }
+		canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+	</style>
 </head>
 <body>
-    <div class="stage">
-        <div class="frame" id="frame">
-            <img class="photo" id="photo" src="./2a1a7694-cb78-4695-ac64-5638325e5f84.jpg" alt="Ảnh">
-            <div class="hearts-layer" id="hearts"></div>
-        </div>
-        <div class="caption"></div>
-    </div>
+	<canvas id="heart"></canvas>
+	<script>
+	(() => {
+		const canvas = document.getElementById('heart');
+		const ctx = canvas.getContext('2d', { alpha: false });
+		ctx.imageSmoothingEnabled = false;
 
-    <script>
-    (function () {
-        const img = document.getElementById('photo');
-        const layer = document.getElementById('hearts');
-        const frame = document.getElementById('frame');
+		const MAX_DPR = 1.25;
+		const state = { dpr: 1, width: 0, height: 0, time: 0 };
 
-        function placeHeartsAndSparkles() {
-            layer.innerHTML = '';
+		function resize() {
+			state.dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+			state.width = canvas.clientWidth;
+			state.height = canvas.clientHeight;
+			canvas.width = Math.floor(state.width * state.dpr);
+			canvas.height = Math.floor(state.height * state.dpr);
+			ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+			ctx.fillStyle = '#000';
+			ctx.fillRect(0, 0, state.width, state.height);
+		}
+		window.addEventListener('resize', resize, { passive: true });
+		resize();
 
-            const width = img.naturalWidth ? Math.min(img.naturalWidth, img.clientWidth) : img.clientWidth;
-            const height = img.naturalHeight ? Math.min(img.naturalHeight, img.clientHeight) : img.clientHeight;
+		const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test((navigator.userAgent || '').toLowerCase());
 
-            // Bán kính elip lớn hơn ảnh một chút để trái tim nằm "xung quanh" ảnh
-            const padding = Math.max(20, Math.round(Math.min(width, height) * 0.12));
-            const rx = width / 2 + padding;
-            const ry = height / 2 + padding * 0.9;
+		const PARTICLE_COUNT = isMobile ? 120 : 180;
+		const HEART_SAMPLES = isMobile ? 360 : 700; // lấy mẫu dày hơn để rõ dáng
+		const FADE_ALPHA = 0.08;
 
-            // Số lượng trái tim (tỉ lệ theo kích thước ảnh)
-            const count = Math.max(18, Math.round((width + height) / 36));
+		function heart(rad) {
+			const x = Math.pow(Math.sin(rad), 3);
+			const y = -(15 * Math.cos(rad) - 5 * Math.cos(2 * rad) - 2 * Math.cos(3 * rad) - Math.cos(4 * rad));
+			return [x, y];
+		}
 
-            for (let i = 0; i < count; i++) {
-                const theta = (i / count) * Math.PI * 2; // góc theo radian
-                const x = width / 2 + rx * Math.cos(theta);
-                const y = height / 2 + ry * Math.sin(theta);
+		const baseX = new Float32Array(HEART_SAMPLES);
+		const baseY = new Float32Array(HEART_SAMPLES);
+		(() => {
+			const step = (Math.PI * 2) / HEART_SAMPLES;
+			for (let i = 0; i < HEART_SAMPLES; i++) {
+				const r = i * step;
+				const p = heart(r);
+				baseX[i] = p[0];
+				baseY[i] = p[1];
+			}
+		})();
 
-                const span = document.createElement('span');
-                span.className = 'heart';
-                span.textContent = Math.random() < 0.35 ? '💖' : '❤';
+		const targetX = new Float32Array(HEART_SAMPLES);
+		const targetY = new Float32Array(HEART_SAMPLES);
 
-                // Xoay trái tim hướng ra ngoài (vuông góc với tiếp tuyến của elip)
-                const deg = (theta * 180 / Math.PI) + 90;
-                const size = 16 + Math.random() * 10; // px
-                const scale = 0.92 + Math.random() * 0.25;
+		// Giữ đúng tỉ lệ gốc: xScale=210, yScale=13 => ratio ~ 13/210
+		const XY_RATIO = 13 / 210;
+		function updateTargets(k) {
+			// scale theo chiều ngắn hơn của màn, đảm bảo cân đối
+			const S = Math.min(state.width, state.height) * 0.22;
+			const sx = S * k;
+			const sy = S * XY_RATIO * k;
+			const dx = state.width / 2;
+			const dy = state.height / 2;
+			for (let i = 0; i < HEART_SAMPLES; i++) {
+				targetX[i] = dx + baseX[i] * sx;
+				targetY[i] = dy + baseY[i] * sy;
+			}
+		}
 
-                span.style.setProperty('--deg', deg.toFixed(2) + 'deg');
-                span.style.setProperty('--scale', scale.toFixed(2));
-                span.style.fontSize = size.toFixed(0) + 'px';
-                span.style.left = x + 'px';
-                span.style.top = y + 'px';
-                span.style.animationDelay = (Math.random() * 1.8).toFixed(2) + 's';
+		const px = new Float32Array(PARTICLE_COUNT);
+		const py = new Float32Array(PARTICLE_COUNT);
+		const vx = new Float32Array(PARTICLE_COUNT);
+		const vy = new Float32Array(PARTICLE_COUNT);
+		const idx = new Int32Array(PARTICLE_COUNT);
+		const dir = new Int8Array(PARTICLE_COUNT);
+		const speed = new Float32Array(PARTICLE_COUNT);
+		const force = new Float32Array(PARTICLE_COUNT);
 
-                layer.appendChild(span);
-            }
+		function rand() { return Math.random(); }
 
-            // Tạo lấp lánh quanh viền elip
-            const sparkles = Math.max(18, Math.round(count * 0.8));
-            for (let i = 0; i < sparkles; i++) {
-                const t = Math.random() * Math.PI * 2;
-                const jitter = (Math.random() - 0.5) * padding * 0.25;
-                const x = width / 2 + (rx + jitter) * Math.cos(t);
-                const y = height / 2 + (ry + jitter) * Math.sin(t);
-                const s = document.createElement('i');
-                s.className = 'sparkle';
-                s.style.left = x + 'px';
-                s.style.top = y + 'px';
-                s.style.width = s.style.height = (3 + Math.random() * 4).toFixed(0) + 'px';
-                s.style.animationDelay = (Math.random() * 2).toFixed(2) + 's';
-                layer.appendChild(s);
-            }
-        }
+		function initParticles() {
+			for (let i = 0; i < PARTICLE_COUNT; i++) {
+				px[i] = rand() * state.width;
+				py[i] = rand() * state.height;
+				vx[i] = 0;
+				vy[i] = 0;
+				idx[i] = (rand() * HEART_SAMPLES) | 0;
+				dir[i] = (i % 2 === 0) ? 1 : -1;
+				speed[i] = 4.8 + rand();
+				force[i] = 0.74 + 0.18 * rand();
+			}
+		}
+		initParticles();
 
-        // Nghiêng 3D theo chuột
-        let rafId = 0;
-        function onMove(e) {
-            const rect = frame.getBoundingClientRect();
-            const cx = rect.left + rect.width / 2;
-            const cy = rect.top + rect.height / 2;
-            const dx = (e.clientX - cx) / rect.width; // -0.5..0.5
-            const dy = (e.clientY - cy) / rect.height;
-            const maxX = 12; // deg
-            const maxY = 18; // deg
-            const rotX = (-dy) * maxX;
-            const rotY = dx * maxY;
-            cancelAnimationFrame(rafId);
-            rafId = requestAnimationFrame(() => {
-                frame.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
-                frame.style.filter = 'drop-shadow(0 18px 30px rgba(0,0,0,.18))';
-            });
-        }
-        function onLeave() {
-            frame.style.transform = 'perspective(900px) rotateX(0deg) rotateY(0deg)';
-            frame.style.filter = 'drop-shadow(0 10px 24px rgba(0,0,0,.15))';
-        }
-        frame.addEventListener('mousemove', onMove);
-        frame.addEventListener('mouseleave', onLeave);
+		function frame() {
+			const t = state.time;
+			const n = -Math.cos(t);
+			// cùng hệ số cho x và y để tim “đập” nhưng vẫn giữ tỉ lệ
+			updateTargets((1 + n) * 0.52);
+			state.time += ((Math.sin(t) < 0) ? 9 : (n > 0.8 ? 0.2 : 1)) * 0.010;
 
-        // Khi ảnh tải xong hoặc khi resize, vẽ lại trái tim & lấp lánh
-        if (img.complete) {
-            placeHeartsAndSparkles();
-        } else {
-            img.addEventListener('load', placeHeartsAndSparkles, { once: true });
-        }
-        window.addEventListener('resize', placeHeartsAndSparkles);
-    })();
-    </script>
+			ctx.fillStyle = `rgba(0,0,0,${FADE_ALPHA})`;
+			ctx.fillRect(0, 0, state.width, state.height);
+
+			ctx.fillStyle = 'rgba(255,64,80,0.95)';
+			ctx.globalCompositeOperation = 'source-over';
+
+			for (let i = 0; i < PARTICLE_COUNT; i++) {
+				const q = idx[i];
+				let dx = px[i] - targetX[q];
+				let dy = py[i] - targetY[q];
+				let d = Math.hypot(dx, dy);
+				if (d < 10) {
+					if (rand() > 0.95) {
+						idx[i] = (rand() * HEART_SAMPLES) | 0;
+					} else {
+						if (rand() > 0.99) dir[i] = -dir[i];
+						let ni = q + dir[i];
+						if (ni < 0) ni += HEART_SAMPLES;
+						else if (ni >= HEART_SAMPLES) ni -= HEART_SAMPLES;
+						idx[i] = ni;
+					}
+					dx = px[i] - targetX[idx[i]];
+					dy = py[i] - targetY[idx[i]];
+					d = Math.hypot(dx, dy) || 1;
+				}
+
+				vx[i] += -dx / d * speed[i];
+				vy[i] += -dy / d * speed[i];
+
+				px[i] += vx[i];
+				py[i] += vy[i];
+
+				vx[i] *= force[i];
+				vy[i] *= force[i];
+
+				ctx.fillRect(px[i], py[i], 1.2, 1.2);
+			}
+
+			requestAnimationFrame(frame);
+		}
+
+		requestAnimationFrame(frame);
+	})();
+	</script>
 </body>
 </html>
-
-
