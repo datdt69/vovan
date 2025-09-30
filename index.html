@@ -37,8 +37,8 @@
 		const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test((navigator.userAgent || '').toLowerCase());
 
 		const PARTICLE_COUNT = isMobile ? 120 : 180;
-		const HEART_SAMPLES = isMobile ? 360 : 700; // lấy mẫu dày hơn để rõ dáng
-		const FADE_ALPHA = 0.08;
+		const HEART_SAMPLES = isMobile ? 360 : 700; 
+		const FADE_ALPHA = 0.5;
 
 		function heart(rad) {
 			const x = Math.pow(Math.sin(rad), 3);
@@ -104,7 +104,6 @@
 		function frame() {
 			const t = state.time;
 			const n = -Math.cos(t);
-			// cùng hệ số cho x và y để tim “đập” nhưng vẫn giữ tỉ lệ
 			updateTargets((1 + n) * 0.52);
 			state.time += ((Math.sin(t) < 0) ? 9 : (n > 0.8 ? 0.2 : 1)) * 0.010;
 
@@ -154,3 +153,4 @@
 	</script>
 </body>
 </html>
+
