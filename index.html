@@ -37,8 +37,12 @@
 		const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test((navigator.userAgent || '').toLowerCase());
 
 		const PARTICLE_COUNT = isMobile ? 120 : 3000;
-		const HEART_SAMPLES = isMobile ? 360 : 700; // lấy mẫu dày hơn để rõ dáng
+		const HEART_SAMPLES = isMobile ? 360 : 700;
 		const FADE_ALPHA = 0.05;
+
+		// Thêm cấu hình viền
+		const STROKE_WIDTH = isMobile ? 1 : 2.5;
+		const STROKE_COLOR = 'rgba(255,64,80,1)';
 
 		function heart(rad) {
 			const x = Math.pow(Math.sin(rad), 3);
@@ -61,10 +65,8 @@
 		const targetX = new Float32Array(HEART_SAMPLES);
 		const targetY = new Float32Array(HEART_SAMPLES);
 
-		// Giữ đúng tỉ lệ gốc: xScale=210, yScale=13 => ratio ~ 13/210
 		const XY_RATIO = 13 / 210;
 		function updateTargets(k) {
-			// scale theo chiều ngắn hơn của màn, đảm bảo cân đối
 			const S = Math.min(state.width, state.height) * 0.22;
 			const sx = S * k;
 			const sy = S * XY_RATIO * k;
@@ -104,16 +106,29 @@
 		function frame() {
 			const t = state.time;
 			const n = -Math.cos(t);
-			// cùng hệ số cho x và y để tim “đập” nhưng vẫn giữ tỉ lệ
 			updateTargets((1 + n) * 0.52);
 			state.time += ((Math.sin(t) < 0) ? 9 : (n > 0.8 ? 0.2 : 1)) * 0.010;
 
 			ctx.fillStyle = `rgba(0,0,0,${FADE_ALPHA})`;
 			ctx.fillRect(0, 0, state.width, state.height);
 
-			ctx.fillStyle = 'rgba(255,64,80,0.95)';
 			ctx.globalCompositeOperation = 'source-over';
 
+			// Vẽ viền trái tim dày
+			ctx.beginPath();
+			ctx.moveTo(targetX[0], targetY[0]);
+			for (let i = 1; i < HEART_SAMPLES; i++) {
+				ctx.lineTo(targetX[i], targetY[i]);
+			}
+			ctx.closePath();
+			ctx.strokeStyle = STROKE_COLOR;
+			ctx.lineWidth = STROKE_WIDTH;
+			ctx.lineJoin = 'round';
+			ctx.lineCap = 'round';
+			ctx.stroke();
+
+			// Hạt tô thêm thân tim
+			ctx.fillStyle = 'rgba(255,64,80,0.95)';
 			for (let i = 0; i < PARTICLE_COUNT; i++) {
 				const q = idx[i];
 				let dx = px[i] - targetX[q];
